@@ -1,22 +1,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  checkLimits,
   expiry,
   positiveInt,
   quote,
-  verifyTransaction,
-  checkLimits,
   updateResponse,
+  verifyTransaction,
 } from "../supabase/functions/_shared/domain.js";
-import { seal, open, random } from "../supabase/functions/_shared/crypto.js";
-import { GPTYar, Bale } from "../supabase/functions/_shared/clients.js";
+import { open, random, seal } from "../supabase/functions/_shared/crypto.js";
+import { Bale, GPTYar } from "../supabase/functions/_shared/clients.js";
 import { createHandler } from "../supabase/functions/_shared/handler.js";
 import { inspectZip } from "../supabase/functions/_shared/archive.js";
-import { zipSync, strToU8 } from "fflate";
+import { strToU8, zipSync } from "fflate";
 test("Persian/Arabic/Latin numbers; invalid or fractional quantities rejected", () => {
   for (const n of ["۱۲", "١٢", "12"]) assert.equal(positiveInt(n), 12);
-  for (const n of ["-1", "1.2", "Infinity", "0", "۲x"])
+  for (const n of ["-1", "1.2", "Infinity", "0", "۲x"]) {
     assert.throws(() => positiveInt(n));
+  }
 });
 test("renewal preserves remaining validity; expired begins now; month exactly 30 UTC days", () => {
   const now = Date.parse("2026-10-18T08:00:00Z");
@@ -83,13 +84,16 @@ test("transaction must match payer, amount, currency, payload and paid status", 
     },
     tx = { id: "tx", status: "paid", userID: 12, amount: 1000 };
   assert(verifyTransaction(o, p, tx, 12));
-  for (const [k, v] of [
-    ["status", "pending"],
-    ["amount", 1],
-    ["userID", 13],
-    ["id", "other"],
-  ])
+  for (
+    const [k, v] of [
+      ["status", "pending"],
+      ["amount", 1],
+      ["userID", 13],
+      ["id", "other"],
+    ]
+  ) {
     assert.throws(() => verifyTransaction(o, p, { ...tx, [k]: v }, 12));
+  }
   assert.throws(() => verifyTransaction(o, { ...p, currency: "IRT" }, tx, 12));
 });
 test("AES-GCM encrypts with purpose binding; wrong key and tampering rejected", async () => {
@@ -111,10 +115,10 @@ test("admin auth requires actual management capability and account scope, not pr
       JSON.stringify(
         url.endsWith("/validate")
           ? {
-              message: "ok",
-              account: { id: "owner" },
-              agent: { name: "admin" },
-            }
+            message: "ok",
+            account: { id: "owner" },
+            agent: { name: "admin" },
+          }
           : { accountId: "owner", subscribers: [] },
       ),
     );
@@ -186,6 +190,34 @@ test("handler blocks foreign origins, unauthenticated admin and worker requests"
     ).status,
     401,
   );
+});
+test("hosted Supabase internal HTTP uses its TLS gateway; client headers cannot bypass HTTPS", async () => {
+  const internal = "http://edge-runtime/gptyar-api/health";
+  const handle = createHandler({ SUPABASE_URL: "https://fixture.supabase.co" });
+  assert.equal(
+    (await handle(
+      new Request(internal, {
+        headers: { "X-Forwarded-Proto": "https" },
+      }),
+    )).status,
+    400,
+  );
+  const hosted = createHandler({
+    SUPABASE_URL: "https://fixture.supabase.co",
+    DENO_DEPLOYMENT_ID: "fixture-runtime-id",
+  });
+  assert.equal((await hosted(new Request(internal))).status, 200);
+});
+test("incomplete infrastructure is explicit and cannot accept administrative tokens", async () => {
+  const handle = createHandler({ SUPABASE_URL: "https://fixture.supabase.co" });
+  const health = await handle(new Request("https://fixture.supabase.co/health"));
+  assert.equal((await health.json()).security_configured, false);
+  const login = await handle(new Request("https://fixture.supabase.co/api/login", {
+    method: "POST", headers: { Origin: "https://gptyar-web.github.io", "Content-Type": "application/json" },
+    body: JSON.stringify({ token: "@fixture-unused" }),
+  }));
+  assert.equal(login.status, 503);
+  assert.equal((await login.json()).error, "INITIAL_SETUP_REQUIRED");
 });
 test("optional, forced, rollback and numerically ordered update contracts", () => {
   const r = { version: "4.10.0", update_mode: "OPTIONAL", sha256: "hash" };

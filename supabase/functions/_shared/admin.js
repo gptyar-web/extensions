@@ -1,5 +1,5 @@
-import { assert, compareVersions, AppError } from "./domain.js";
-import { random, hash } from "./crypto.js";
+import { AppError, assert, compareVersions } from "./domain.js";
+import { hash, random } from "./crypto.js";
 import { authenticate, bodyJSON, readBytes } from "./context.js";
 import { Bale } from "./clients.js";
 import { inspectZip } from "./archive.js";
@@ -32,6 +32,11 @@ const text = (v, max = 1000) => {
 };
 export async function adminRoute(ctx, req, path) {
   if (path === "/api/login" && req.method === "POST") {
+    assert(
+      ctx.env.GPTYAR_ACCOUNT_ID && ctx.env.GPTYAR_ENCRYPTION_KEY,
+      "INITIAL_SETUP_REQUIRED",
+      503,
+    );
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
     await ctx.rate("login:" + ip, 8, 900);
     await ctx.rate("login:global", 80, 900);
@@ -82,22 +87,22 @@ export async function adminRoute(ctx, req, path) {
         request_id: key,
       });
     } catch (e) {
-      if (e.dbCode === "23505")
+      if (e.dbCode === "23505") {
         throw new AppError("REQUEST_ALREADY_RECEIVED", 409);
+      }
       throw e;
     }
     if (!path.endsWith("/releases/upload")) b = await bodyJSON(req);
-    const target =
-      typeof b.id === "string" && /^[a-f0-9-]{36}$/.test(b.id)
-        ? b.id
-        : ["day", "month"].includes(b.unit)
-          ? b.unit
-          : null;
+    const target = typeof b.id === "string" && /^[a-f0-9-]{36}$/.test(b.id)
+      ? b.id
+      : ["day", "month"].includes(b.unit)
+      ? b.unit
+      : null;
     const auditPath = /^\/api\/[a-z/-]{1,80}$/.test(path)
       ? path
       : path.startsWith("/api/subscribers/")
-        ? "/api/subscribers/:id"
-        : "/api/invalid";
+      ? "/api/subscribers/:id"
+      : "/api/invalid";
     await ctx.audit(session.id, `${req.method} ${auditPath}`, target, {
       request_id: key,
       phase: "requested",
@@ -112,11 +117,12 @@ export async function adminRoute(ctx, req, path) {
     return { ok: true };
   }
   if (path === "/api/account" && req.method === "GET") return { profile };
-  if (path === "/api/receipts" && req.method === "GET")
+  if (path === "/api/receipts" && req.method === "GET") {
     return ctx.db.request(
       "payment_receipts?select=id,charge_id,payer_bale_id,status,order_id,error_code,created_at&status=eq.needs_review&order=created_at.desc&limit=100",
     );
-  if (path === "/api/dashboard" && req.method === "GET")
+  }
+  if (path === "/api/dashboard" && req.method === "GET") {
     return {
       metrics: await ctx.db.rpc("metrics"),
       connections: {
@@ -125,8 +131,10 @@ export async function adminRoute(ctx, req, path) {
         wallet: await ctx.setting("wallet"),
       },
     };
-  if (path === "/api/subscribers" && req.method === "GET")
+  }
+  if (path === "/api/subscribers" && req.method === "GET") {
     return ctx.gpt.list(token);
+  }
   if (path === "/api/subscribers" && req.method === "POST") {
     const name = text(b.name, 100);
     assert(name.length > 0, "INVALID_NAME");
@@ -143,19 +151,23 @@ export async function adminRoute(ctx, req, path) {
   if (subscriber) {
     const subscriptionId = decodeURIComponent(subscriber[1]);
     assert(/^[\p{L}\p{N}_:-]{1,160}$/u.test(subscriptionId), "INVALID_ID");
-    if (req.method === "PATCH")
+    if (req.method === "PATCH") {
       return ctx.gpt.update(token, subscriptionId, date(b.expiresAt));
-    if (req.method === "DELETE")
+    }
+    if (req.method === "DELETE") {
       return ctx.gpt.call("/accupdator/subscribers/delete", "DELETE", token, {
         subscriptionId,
       });
+    }
   }
-  if (path === "/api/cookies/status" && req.method === "GET")
+  if (path === "/api/cookies/status" && req.method === "GET") {
     return ctx.gpt.call("/accupdator/fetch-cookies", "POST", token, { token });
-  if (path === "/api/cookies" && req.method === "DELETE")
+  }
+  if (path === "/api/cookies" && req.method === "DELETE") {
     return ctx.gpt.call("/accupdator/delete-cookies", "DELETE", token, {
       token,
     });
+  }
   if (path === "/api/cookies" && req.method === "POST") {
     assert(
       ["gpt", "grok", "claude", "midjourney"].includes(b.cookie_type) &&
@@ -191,8 +203,9 @@ export async function adminRoute(ctx, req, path) {
       cookies,
     });
   }
-  if (path === "/api/proxies" && req.method === "GET")
+  if (path === "/api/proxies" && req.method === "GET") {
     return ctx.gpt.call("/client/proxy-info", "POST", token, { token });
+  }
   if (path === "/api/settings" && req.method === "GET") {
     const data = await ctx.db.request("system_settings?select=key,value");
     const secrets = await ctx.db.request(
@@ -211,7 +224,8 @@ export async function adminRoute(ctx, req, path) {
         updated_at: x.updated_at,
       })),
       extension_version: ctx.gpt.version,
-      update_endpoint: `${ctx.env.SUPABASE_URL}/functions/v1/gptyar-api/public/check-for-update`,
+      update_endpoint:
+        `${ctx.env.SUPABASE_URL}/functions/v1/gptyar-api/public/check-for-update`,
     };
   }
   if (path === "/api/settings/notifications/pair" && req.method === "POST") {
@@ -285,7 +299,8 @@ export async function adminRoute(ctx, req, path) {
       409,
     );
     const secret = random(),
-      webhook = `${ctx.env.SUPABASE_URL}/functions/v1/gptyar-api/bale/${secret}`;
+      webhook =
+        `${ctx.env.SUPABASE_URL}/functions/v1/gptyar-api/bale/${secret}`;
     // Store before registration so incoming updates can be authenticated immediately.
     await ctx.saveSecret("bale_bot", b.token, session.id);
     await ctx.saveSecret("bale_webhook", secret, session.id);
@@ -316,7 +331,8 @@ export async function adminRoute(ctx, req, path) {
       me = await bot.call("getMe"),
       info = await bot.call("getWebhookInfo"),
       secret = await ctx.secret("bale_webhook"),
-      expected = `${ctx.env.SUPABASE_URL}/functions/v1/gptyar-api/bale/${secret}`;
+      expected =
+        `${ctx.env.SUPABASE_URL}/functions/v1/gptyar-api/bale/${secret}`;
     const state = await ctx.setting("bot");
     await ctx.set("bot", {
       ...state,
@@ -411,16 +427,17 @@ export async function adminRoute(ctx, req, path) {
       wallet_revision: w.revision,
       invoice_expires_at: new Date(Date.now() + 20 * 60000).toISOString(),
     });
-    const provider =
-      w.mode === "test"
-        ? "WALLET-TEST-1111111111111111"
-        : await ctx.secret("bale_provider");
+    const provider = w.mode === "test"
+      ? "WALLET-TEST-1111111111111111"
+      : await ctx.secret("bale_provider");
     const invoice = await (
       await ctx.bot()
     ).call("sendInvoice", {
       chat_id: user,
       title: "اعتبارسنجی کیف پول",
-      description: `آزمایش اتصال کیف پول؛ ۱۰۰۰ ریال. اشتراک صادر نمی‌شود.${w.mode === "live" ? " این پرداخت واقعی است." : " انتقال وجه ندارد."}`,
+      description: `آزمایش اتصال کیف پول؛ ۱۰۰۰ ریال. اشتراک صادر نمی‌شود.${
+        w.mode === "live" ? " این پرداخت واقعی است." : " انتقال وجه ندارد."
+      }`,
       payload: o.id,
       provider_token: provider,
       prices: [{ label: "اعتبارسنجی اتصال", amount: 1000 }],
@@ -432,10 +449,12 @@ export async function adminRoute(ctx, req, path) {
   }
   if (path === "/api/settings/limits" && req.method === "POST") {
     assert(b.confirmed === true, "LIMITS_REVIEW_REQUIRED");
-    const maxUsers =
-        b.maxUsers == null ? null : integer(b.maxUsers, 1, 1000000),
-      maxDurationDays =
-        b.maxDurationDays == null ? null : integer(b.maxDurationDays, 1, 36500);
+    const maxUsers = b.maxUsers == null
+        ? null
+        : integer(b.maxUsers, 1, 1000000),
+      maxDurationDays = b.maxDurationDays == null
+        ? null
+        : integer(b.maxDurationDays, 1, 36500);
     const value = {
       confirmed: true,
       maxUsers,
@@ -451,8 +470,9 @@ export async function adminRoute(ctx, req, path) {
     await ctx.set("support", { url: safeURL(b.url), site: safeURL(b.site) });
     return { ok: true };
   }
-  if (path === "/api/pricing" && req.method === "GET")
+  if (path === "/api/pricing" && req.method === "GET") {
     return ctx.db.request("pricing_rules?order=unit");
+  }
   if (path === "/api/pricing" && req.method === "POST") {
     assert(
       ["day", "month"].includes(b.unit) && typeof b.enabled === "boolean",
@@ -488,23 +508,28 @@ export async function adminRoute(ctx, req, path) {
         0,
         Math.min(100000, Number(url.searchParams.get("offset")) || 0),
       );
-    if (path === "/api/claims")
+    if (path === "/api/claims") {
       return ctx.db.request(
         `ownership_claims?select=id,customer_id,status,created_at,bot_customers(bale_user_id,first_name,last_name)&order=created_at.desc&limit=100&offset=${offset}`,
       );
-    if (path === "/api/logs")
+    }
+    if (path === "/api/logs") {
       return ctx.db.request(
         `audit_logs?order=created_at.desc&limit=100&offset=${offset}`,
       );
-    if (path === "/api/events")
+    }
+    if (path === "/api/events") {
       return ctx.db.request(
         `system_events?order=created_at.desc&limit=100&offset=${offset}`,
       );
-    if (path === "/api/payments")
+    }
+    if (path === "/api/payments") {
       return ctx.db.request(
         `payments?order=created_at.desc&limit=100&offset=${offset}`,
       );
-    let query = `orders?select=*,bot_customers(bale_user_id,first_name,last_name),payments(status,bale_charge_id,provider_charge_id),subscriptions(expires_at)&order=created_at.desc&limit=100&offset=${offset}`;
+    }
+    let query =
+      `orders?select=*,bot_customers(bale_user_id,first_name,last_name),payments(status,bale_charge_id,provider_charge_id),subscriptions(expires_at)&order=created_at.desc&limit=100&offset=${offset}`;
     if (path === "/api/renewals") query += "&intent=eq.renewal";
     const status = url.searchParams.get("status");
     if (status) {
@@ -519,8 +544,11 @@ export async function adminRoute(ctx, req, path) {
         const c = await ctx.db.one("bot_customers", `bale_user_id=eq.${q}`);
         if (!c) return [];
         query += `&customer_id=eq.${c.id}`;
-      } else
-        query += `&or=(first_name.ilike.*${encodeURIComponent(q)}*,last_name.ilike.*${encodeURIComponent(q)}*)`;
+      } else {
+        query += `&or=(first_name.ilike.*${
+          encodeURIComponent(q)
+        }*,last_name.ilike.*${encodeURIComponent(q)}*)`;
+      }
     }
     return ctx.db.request(query);
   }
@@ -536,8 +564,7 @@ export async function adminRoute(ctx, req, path) {
     );
     return {
       ok: true,
-      message:
-        "تطبیق امن در صف قرار گرفت؛ صدور نامشخص کورکورانه تکرار نمی‌شود.",
+      message: "تطبیق امن در صف قرار گرفت؛ صدور نامشخص کورکورانه تکرار نمی‌شود.",
     };
   }
   if (path === "/api/orders/refund" && req.method === "POST") {
@@ -575,14 +602,16 @@ export async function adminRoute(ctx, req, path) {
         p_expiry: remote.expiresAt,
       });
     }
-    if (b.approve !== true)
+    if (b.approve !== true) {
       await ctx.db.patch("ownership_claims", `id=eq.${claim.id}`, {
         status: "rejected",
       });
+    }
     return { ok: true };
   }
-  if (path === "/api/discounts" && req.method === "GET")
+  if (path === "/api/discounts" && req.method === "GET") {
     return ctx.db.request("discount_codes?order=created_at.desc");
+  }
   if (path === "/api/discounts" && req.method === "POST") {
     const d = {
       code: text(b.code, 40).toUpperCase(),
@@ -606,15 +635,15 @@ export async function adminRoute(ctx, req, path) {
     if (b.id) return ctx.db.patch("discount_codes", `id=eq.${id(b.id)}`, d);
     return ctx.db.insert("discount_codes", d);
   }
-  if (path === "/api/videos" && req.method === "GET")
+  if (path === "/api/videos" && req.method === "GET") {
     return ctx.db.request("educational_videos?order=sort_order");
+  }
   if (path === "/api/uploads" && req.method === "POST") {
     assert(["video", "poster"].includes(b.kind), "INVALID_UPLOAD_TYPE");
     const bucket = b.kind === "video" ? "gptyar-videos" : "gptyar-posters";
-    const types =
-      b.kind === "video"
-        ? { "video/mp4": ".mp4", "video/webm": ".webm" }
-        : { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp" };
+    const types = b.kind === "video"
+      ? { "video/mp4": ".mp4", "video/webm": ".webm" }
+      : { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp" };
     assert(Object.hasOwn(types, b.mime), "INVALID_MIME");
     integer(
       b.size,
@@ -635,8 +664,8 @@ export async function adminRoute(ctx, req, path) {
     return {
       ticket: ticket.id,
       path,
-      url:
-        ctx.env.SUPABASE_URL + "/storage/v1" + (signed.url || signed.signedURL),
+      url: ctx.env.SUPABASE_URL + "/storage/v1" +
+        (signed.url || signed.signedURL),
       mime: b.mime,
     };
   }
@@ -649,15 +678,21 @@ export async function adminRoute(ctx, req, path) {
       active: b.active === true,
     };
     assert(/^[a-z][a-z0-9-]{1,39}$/.test(d.slug), "INVALID_SLUG");
-    for (const [field, kind] of [
-      ["storage_path", "video"],
-      ["poster_path", "poster"],
-    ])
+    for (
+      const [field, kind] of [
+        ["storage_path", "video"],
+        ["poster_path", "poster"],
+      ]
+    ) {
       if (b[field]) {
         const bucket = kind === "video" ? "gptyar-videos" : "gptyar-posters",
           ticket = await ctx.db.one(
             "upload_tickets",
-            `path=eq.${encodeURIComponent(b[field])}&bucket=eq.${bucket}&session_id=eq.${session.id}&expires_at=gt.${new Date().toISOString()}`,
+            `path=eq.${
+              encodeURIComponent(b[field])
+            }&bucket=eq.${bucket}&session_id=eq.${session.id}&expires_at=gt.${
+              new Date().toISOString()
+            }`,
           );
         const current = b.id
           ? await ctx.db.one("educational_videos", `id=eq.${id(b.id)}`)
@@ -679,6 +714,7 @@ export async function adminRoute(ctx, req, path) {
         }
         d[field] = b[field];
       }
+    }
     const existing = b.id
       ? await ctx.db.one("educational_videos", `id=eq.${id(b.id)}`)
       : null;
@@ -690,8 +726,9 @@ export async function adminRoute(ctx, req, path) {
       ? ctx.db.patch("educational_videos", `id=eq.${id(b.id)}`, d)
       : ctx.db.insert("educational_videos", d);
   }
-  if (path === "/api/releases" && req.method === "GET")
+  if (path === "/api/releases" && req.method === "GET") {
     return ctx.db.request("extension_versions?order=created_at.desc");
+  }
   if (path === "/api/releases/upload" && req.method === "POST") {
     const u = new URL(req.url),
       version = text(u.searchParams.get("version"), 30);
@@ -725,8 +762,9 @@ export async function adminRoute(ctx, req, path) {
   if (path === "/api/releases" && req.method === "POST") {
     const release = await ctx.db.one("extension_versions", `id=eq.${id(b.id)}`);
     assert(release, "VERSION_NOT_FOUND", 404);
-    if (b.download_link)
+    if (b.download_link) {
       await verifyDownload(ctx, safeURL(b.download_link), release);
+    }
     assert(
       ["OPTIONAL", "FORCED"].includes(b.update_mode),
       "INVALID_UPDATE_MODE",
@@ -747,8 +785,9 @@ export async function adminRoute(ctx, req, path) {
       "RELEASE_CHANNEL_NOT_CONNECTED",
       409,
     );
-    if (release.download_link)
+    if (release.download_link) {
       await verifyDownload(ctx, release.download_link, release);
+    }
     await ctx.db.rpc("publish", {
       p_id: id(b.id),
       p_rollback: b.rollback === true,

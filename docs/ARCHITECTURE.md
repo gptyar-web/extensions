@@ -4,6 +4,8 @@ The existing `extensions` repository owns the admin UI, database migrations and 
 
 ## Data and security
 
+All application tables and RPCs use the `gptyar_` prefix in `public` so GPT Yar can share a Supabase project with an existing application. The database adapter keeps logical table names and aliases embedded relations back to their existing UI response keys. No grants, policies or functions belonging to other applications are changed.
+
 Twenty-five application tables hold sessions, encrypted settings, customers, conversations, products, prices, orders, payments, independent payment receipts, subscriptions, operations, discounts/redemptions, videos, versions, audit/events, updates, jobs, limits, leases, ownership claims, upload tickets and replay IDs. Every table has RLS and explicit revocation from `PUBLIC`, `anon` and `authenticated`. Application functions use invoker rights, fixed empty search paths, and execute grants only to `service_role`. Private Storage buckets have no browser write policy; exact-path signed upload capabilities are issued only after admin authentication.
 
 Secrets are encrypted with AES-256-GCM, fresh 96-bit IVs and purpose-bound additional authenticated data. `GPTYAR_ENCRYPTION_KEY` is a 32-byte base64 Edge Function secret, held outside PostgreSQL. Backups of this key must be kept outside the database; losing it prevents decryption. Key rotation requires re-encryption of existing ciphertext, not merely replacing the environment value. API/bot/provider credential rotation is supported in the panel. After replacing a possibly exposed GPT Yar admin token, revoke it with the upstream provider too; deleting local automation permission cannot revoke an upstream token.

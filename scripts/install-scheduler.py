@@ -24,7 +24,7 @@ select net.http_post(
  headers:=jsonb_build_object('Content-Type','application/json','Authorization','Bearer '||(select decrypted_secret from vault.decrypted_secrets where name='gptyar_worker_secret')),
  body:='{}'::jsonb,timeout_milliseconds:=60000);
 $job$);
-select cron.schedule('gptyar-housekeeping','17 2 * * *','select public.gy_housekeeping()');
+select cron.schedule('gptyar-housekeeping','17 2 * * *','select public.gptyar_housekeeping()');
 """.replace('API_BASE',literal(base)).replace('WORKER_SECRET',literal(worker))
 req=urllib.request.Request('https://api.supabase.com/v1/projects/'+ref+'/database/query',data=json.dumps({'query':query}).encode(),headers={'Authorization':'Bearer '+pat,'Content-Type':'application/json'},method='POST')
 try:

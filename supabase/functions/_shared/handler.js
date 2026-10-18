@@ -1,7 +1,7 @@
-import { context, bodyJSON } from "./context.js";
+import { bodyJSON, context } from "./context.js";
 import { adminRoute } from "./admin.js";
 import { AppError, assert, updateResponse } from "./domain.js";
-import { hash, equalHash } from "./crypto.js";
+import { equalHash, hash } from "./crypto.js";
 import { preCheckout } from "./bot.js";
 import { runJobs } from "./worker.js";
 const HEADERS = {
@@ -21,24 +21,22 @@ export function createHandler(env, waitUntil = (_promise) => {}) {
       .map((x) => x.trim());
   return async (req) => {
     const u = new URL(req.url),
-      path =
-        u.pathname
-          .replace(/^\/functions\/v1\/gptyar-api/, "")
-          .replace(/^\/gptyar-api/, "") || "/",
+      path = u.pathname
+        .replace(/^\/functions\/v1\/gptyar-api/, "")
+        .replace(/^\/gptyar-api/, "") || "/",
       origin = req.headers.get("Origin");
     const isPublic = path.startsWith("/public/"),
       allowed = (isPublic ? publicOrigins : adminOrigins).includes(origin);
-    const cors =
-      origin && allowed
-        ? {
-            "Access-Control-Allow-Origin": origin,
-            Vary: "Origin",
-            "Access-Control-Allow-Headers":
-              "Authorization, Content-Type, X-Request-ID",
-            "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
-            "Access-Control-Max-Age": "300",
-          }
-        : {};
+    const cors = origin && allowed
+      ? {
+        "Access-Control-Allow-Origin": origin,
+        Vary: "Origin",
+        "Access-Control-Allow-Headers":
+          "Authorization, Content-Type, X-Request-ID",
+        "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+        "Access-Control-Max-Age": "300",
+      }
+      : {};
     const json = (d, s = 200) =>
       new Response(JSON.stringify(d), {
         status: s,
@@ -53,7 +51,15 @@ export function createHandler(env, waitUntil = (_promise) => {}) {
         });
       }
       assert(
-        u.protocol === "https:" || env.LOCAL_DEVELOPMENT === "true",
+        u.protocol === "https:" ||
+          // Supabase terminates public TLS at its gateway; the hosted runtime
+          // may receive an internal HTTP URL. Trust only its runtime marker,
+          // never a caller-supplied forwarded-protocol header.
+          (u.protocol === "http:" && Boolean(env.DENO_DEPLOYMENT_ID) &&
+            /^https:\/\/[a-z0-9]+\.supabase\.co\/?$/.test(
+              env.SUPABASE_URL || "",
+            )) ||
+          env.LOCAL_DEVELOPMENT === "true",
         "HTTPS_REQUIRED",
         400,
       );
@@ -65,8 +71,17 @@ export function createHandler(env, waitUntil = (_promise) => {}) {
         );
         return json(await adminRoute(ctx, req, path));
       }
-      if (path === "/health" && req.method === "GET")
-        return json({ ok: true, service: "GPT Yar API", version: "3.0.0" });
+      if (path === "/health" && req.method === "GET") {
+        return json({
+          ok: true,
+          service: "GPT Yar API",
+          version: "3.0.0",
+          security_configured: Boolean(
+            env.GPTYAR_ACCOUNT_ID && env.GPTYAR_ENCRYPTION_KEY,
+          ),
+          worker_configured: Boolean(env.GPTYAR_WORKER_SECRET),
+        });
+      }
       if (path === "/jobs/run" && req.method === "POST") {
         assert(
           env.GPTYAR_WORKER_SECRET &&
@@ -157,8 +172,7 @@ export function createHandler(env, waitUntil = (_promise) => {}) {
             pricing,
             videos,
             purchase_url: "https://ble.ir/gpryarbot",
-            sales_enabled:
-              bot.enabled &&
+            sales_enabled: bot.enabled &&
               wallet.enabled &&
               (wallet.mode === "test" || wallet.verified),
             mode: wallet.mode,
@@ -184,8 +198,7 @@ export function createHandler(env, waitUntil = (_promise) => {}) {
             status: 302,
             headers: {
               ...HEADERS,
-              Location:
-                r.download_link ||
+              Location: r.download_link ||
                 (await ctx.sign("gptyar-releases", r.storage_path)),
             },
           });

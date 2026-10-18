@@ -6,10 +6,10 @@ import { readFileSync } from "node:fs";
 import { createHandler } from "../supabase/functions/_shared/handler.js";
 import { context } from "../supabase/functions/_shared/context.js";
 import {
-  processUpdate,
   preCheckout,
+  processUpdate,
 } from "../supabase/functions/_shared/bot.js";
-import { runJobs, provision } from "../supabase/functions/_shared/worker.js";
+import { provision, runJobs } from "../supabase/functions/_shared/worker.js";
 import { hash } from "../supabase/functions/_shared/crypto.js";
 const env = {
   SUPABASE_URL: "https://fixture.supabase.co",
@@ -48,9 +48,11 @@ async function rest(u, o) {
     const name = names(table.slice(4)),
       keys = Object.keys(b || {}),
       params = keys.map((k) => b[k]);
-    const call = `${name}(${keys.map((k, i) => names(k) + "=> $" + (i + 1)).join(",")})`;
+    const call = `${name}(${
+      keys.map((k, i) => names(k) + "=> $" + (i + 1)).join(",")
+    })`;
     return response(
-      name === "gy_claim_job"
+      name === "gptyar_claim_job"
         ? await sql(`select * from ${call}`, params)
         : (await sql(`select to_jsonb(${call}) result`, params))[0].result,
     );
@@ -59,8 +61,9 @@ async function rest(u, o) {
   const params = [],
     clauses = [];
   for (const [k, v] of u.searchParams) {
-    if (["select", "order", "limit", "offset", "on_conflict"].includes(k))
+    if (["select", "order", "limit", "offset", "on_conflict"].includes(k)) {
       continue;
+    }
     names(k);
     const dot = v.indexOf("."),
       op = v.slice(0, dot),
@@ -68,16 +71,18 @@ async function rest(u, o) {
     let condition;
     if (op === "is") {
       condition = value === "null" ? `${k} is null` : `${k} is not null`;
-    } else if (op === "not" && value === "is.null")
+    } else if (op === "not" && value === "is.null") {
       condition = `${k} is not null`;
-    else if (op === "in") {
+    } else if (op === "in") {
       const choices = value.slice(1, -1).split(",");
-      condition = `${k} in (${choices
-        .map((x) => {
-          params.push(x);
-          return "$" + params.length;
-        })
-        .join(",")})`;
+      condition = `${k} in (${
+        choices
+          .map((x) => {
+            params.push(x);
+            return "$" + params.length;
+          })
+          .join(",")
+      })`;
     } else {
       const symbol = {
         eq: "=",
@@ -111,22 +116,23 @@ async function rest(u, o) {
   }
   if (method === "POST") {
     const keys = Object.keys(b).map(names);
-    let stmt = `insert into ${table} (${keys.join(",")}) values (${keys.map((_, i) => "$" + (i + 1)).join(",")})`;
+    let stmt = `insert into ${table} (${keys.join(",")}) values (${
+      keys.map((_, i) => "$" + (i + 1)).join(",")
+    })`;
     if (o.headers.Prefer?.includes("resolution=")) {
       const conflict = (
         u.searchParams.get("on_conflict") ||
         {
-          system_settings: "key",
-          secure_settings: "key",
-          bot_conversations: "customer_id",
+          gptyar_system_settings: "key",
+          gptyar_secure_settings: "key",
+          gptyar_bot_conversations: "customer_id",
         }[table] ||
         "id"
       )
         .split(",")
         .map(names)
         .join(",");
-      stmt +=
-        ` on conflict (${conflict}) do ` +
+      stmt += ` on conflict (${conflict}) do ` +
         (o.headers.Prefer.includes("ignore-duplicates")
           ? "nothing"
           : `update set ${keys.map((k) => `${k}=excluded.${k}`).join(",")}`);
@@ -147,15 +153,18 @@ async function rest(u, o) {
     );
     return response(
       await sql(
-        `update ${table} set ${keys.map((k, i) => k + "=$" + (i + 1)).join(",")}${shifted} returning *`,
+        `update ${table} set ${
+          keys.map((k, i) => k + "=$" + (i + 1)).join(",")
+        }${shifted} returning *`,
         [...values, ...params],
       ),
     );
   }
-  if (method === "DELETE")
+  if (method === "DELETE") {
     return response(
       await sql(`delete from ${table}${where} returning *`, params),
     );
+  }
   throw Error("unsupported fixture method");
 }
 async function fixtureFetch(url, o = {}) {
@@ -163,10 +172,11 @@ async function fixtureFetch(url, o = {}) {
   try {
     if (u.origin === env.SUPABASE_URL) return await rest(u, o);
     if (u.origin === "https://api.gptyar.com") {
-      if (o.headers.Authorization !== "Bearer " + fixtureToken)
+      if (o.headers.Authorization !== "Bearer " + fixtureToken) {
         return response({ error: "invalid" }, 403);
+      }
       const b = o.body ? JSON.parse(o.body) : {};
-      if (u.pathname === "/accupdator/validate")
+      if (u.pathname === "/accupdator/validate") {
         return response({
           message: "authorized",
           account: {
@@ -176,13 +186,15 @@ async function fixtureFetch(url, o = {}) {
           },
           agent: { name: "fixture" },
         });
-      if (u.pathname.endsWith("/all"))
+      }
+      if (u.pathname.endsWith("/all")) {
         return response({
           accountId: env.GPTYAR_ACCOUNT_ID,
           accountType: "ENTERPRISE",
           limits: { maxUsers: 50, maxDurationDays: 120 },
           subscribers: remote,
         });
+      }
       if (u.pathname.endsWith("/create")) {
         createCount++;
         const s = {
@@ -209,7 +221,7 @@ async function fixtureFetch(url, o = {}) {
       const method = u.pathname.split("/").at(-1),
         b = JSON.parse(o.body);
       methods.push({ method, body: b });
-      if (method === "getMe")
+      if (method === "getMe") {
         return response({
           ok: true,
           result: {
@@ -219,12 +231,14 @@ async function fixtureFetch(url, o = {}) {
             first_name: "GPT Yar",
           },
         });
+      }
       if (method === "setWebhook") {
         hook = b.url;
         return response({ ok: true, result: true });
       }
-      if (method === "getWebhookInfo")
+      if (method === "getWebhookInfo") {
         return response({ ok: true, result: { url: hook } });
+      }
       if (method === "sendInvoice") {
         invoices.push(b);
         return response({ ok: true, result: { message_id: invoices.length } });
@@ -233,11 +247,12 @@ async function fixtureFetch(url, o = {}) {
         sent.push(b);
         return response({ ok: true, result: { message_id: sent.length } });
       }
-      if (method === "answerPreCheckoutQuery")
+      if (method === "answerPreCheckoutQuery") {
         return response({ ok: true, result: true });
+      }
       if (method === "inquireTransaction") {
         const p = (
-          await sql("select * from payments where bale_charge_id=$1", [
+          await sql("select * from gptyar_payments where bale_charge_id=$1", [
             b.transaction_id,
           ])
         )[0];
@@ -254,8 +269,9 @@ async function fixtureFetch(url, o = {}) {
     }
     throw Error("unhandled fixture URL " + u.origin + u.pathname);
   } catch (e) {
-    if (u.origin === env.SUPABASE_URL)
+    if (u.origin === env.SUPABASE_URL) {
       return response({ message: e.message, code: e.code }, 400);
+    }
     throw e;
   }
 }
@@ -267,7 +283,7 @@ test("local integration: secure login, bot setup, invoices, payment verification
   await db.exec(
     readFileSync(
       new URL(
-        "../supabase/migrations/20261018080907_gptyar_commerce.sql",
+        "../supabase/migrations/20261018161002_gptyar_commerce.sql",
         import.meta.url,
       ),
       "utf8",
@@ -315,7 +331,7 @@ test("local integration: secure login, bot setup, invoices, payment verification
   const flush = async () => {
     for (let i = 0; i < 4; i++) {
       await sql(
-        "update outbox_jobs set available_at=now() where state='pending'",
+        "update gptyar_outbox_jobs set available_at=now() where state='pending'",
       );
       await runJobs(ctx, 8);
     }
@@ -336,7 +352,7 @@ test("local integration: secure login, bot setup, invoices, payment verification
       session = login.body.session;
       assert.match(session, /^[\w-]{43}$/);
       assert(!JSON.stringify(login.body).includes(fixtureToken));
-      const row = (await sql("select * from admin_sessions"))[0];
+      const row = (await sql("select * from gptyar_admin_sessions"))[0];
       assert(!row.token_ciphertext.includes(fixtureToken));
       assert.equal(row.session_hash, await hash(session));
     },
@@ -429,7 +445,9 @@ test("local integration: secure login, bot setup, invoices, payment verification
       });
       assert.equal(probe.status, 200);
       const order = (
-        await sql("select * from orders where id=$1", [probe.body.order_id])
+        await sql("select * from gptyar_orders where id=$1", [
+          probe.body.order_id,
+        ])
       )[0];
       await preCheckout(ctx, {
         id: "probe-charge",
@@ -459,7 +477,9 @@ test("local integration: secure login, bot setup, invoices, payment verification
       assert.equal(createCount, 0);
       assert.equal((await ctx.setting("wallet")).verified, true);
       assert.equal(
-        (await sql("select status from orders where id=$1", [order.id]))[0]
+        (await sql("select status from gptyar_orders where id=$1", [order.id]))[
+          0
+        ]
           .status,
         "completed",
       );
@@ -471,18 +491,21 @@ test("local integration: secure login, bot setup, invoices, payment verification
   await t.test(
     "Persian purchase flow calculates amount; payment precedes names and true API fixture token",
     async () => {
-      for (const text of [
-        "/start",
-        "خرید حساب اشتراکی",
-        "روزانه",
-        "۲",
-        "پرداخت",
-      ])
+      for (
+        const text of [
+          "/start",
+          "خرید حساب اشتراکی",
+          "روزانه",
+          "۲",
+          "پرداخت",
+        ]
+      ) {
         await userMessage(text);
+      }
       const invoice = invoices.at(-1);
       assert.equal(invoice.prices[0].amount, 700000);
       bought = (
-        await sql("select * from orders where id=$1", [invoice.payload])
+        await sql("select * from gptyar_orders where id=$1", [invoice.payload])
       )[0];
       const payment = {
         currency: "IRR",
@@ -519,7 +542,9 @@ test("local integration: secure login, bot setup, invoices, payment verification
       await flush();
       assert.equal(createCount, 0);
       assert.equal(
-        (await sql("select status from orders where id=$1", [bought.id]))[0]
+        (await sql("select status from gptyar_orders where id=$1", [
+          bought.id,
+        ]))[0]
           .status,
         "awaiting_customer_details",
       );
@@ -528,11 +553,13 @@ test("local integration: secure login, bot setup, invoices, payment verification
       await flush();
       assert.equal(createCount, 1);
       assert.equal(
-        (await sql("select status from orders where id=$1", [bought.id]))[0]
+        (await sql("select status from gptyar_orders where id=$1", [
+          bought.id,
+        ]))[0]
           .status,
         "completed",
       );
-      const s = (await sql("select * from subscriptions"))[0];
+      const s = (await sql("select * from gptyar_subscriptions"))[0];
       assert(!s.token_ciphertext.includes("subscriber-fixture-1"));
       assert(
         sent.some(
@@ -556,8 +583,9 @@ test("local integration: secure login, bot setup, invoices, payment verification
     "renewal keeps the same token and all remaining validity",
     async () => {
       const previous = remote[0].expiresAt;
-      for (const text of ["تمدید اشتراک", "۱", "روزانه", "۳", "پرداخت"])
+      for (const text of ["تمدید اشتراک", "۱", "روزانه", "۳", "پرداخت"]) {
         await userMessage(text);
+      }
       const invoice = invoices.at(-1),
         payment = {
           currency: "IRR",
@@ -587,30 +615,35 @@ test("local integration: secure login, bot setup, invoices, payment verification
     "uncertain upstream result reconciles by unique marker without issuing a second account",
     async () => {
       const c = (
-        await sql("select id from bot_customers where bale_user_id=123")
+        await sql("select id from gptyar_bot_customers where bale_user_id=123")
       )[0].id;
       const o = (
         await sql(
-          "select to_jsonb(gy_new_order($1,'purchase','day',1,'live')) o",
+          "select to_jsonb(gptyar_new_order($1,'purchase','day',1,'live')) o",
           [c],
         )
       )[0].o;
       await sql(
-        "select gy_record_payment($1,123,350000,'IRR','uncertain','uncertain-provider',true)",
+        "select gptyar_record_payment($1,123,350000,'IRR','uncertain','uncertain-provider',true)",
         [o.id],
       );
-      await sql("select gy_customer_details($1,$2,'رضا','احمدی')", [o.id, c]);
+      await sql("select gptyar_customer_details($1,$2,'رضا','احمدی')", [
+        o.id,
+        c,
+      ]);
       unknownCreate = true;
       await provision(ctx, o.id);
       assert.equal(createCount, 2);
       assert.equal(
-        (await sql("select status from orders where id=$1", [o.id]))[0].status,
+        (await sql("select status from gptyar_orders where id=$1", [o.id]))[0]
+          .status,
         "needs_review",
       );
       await provision(ctx, o.id);
       assert.equal(createCount, 2);
       assert.equal(
-        (await sql("select status from orders where id=$1", [o.id]))[0].status,
+        (await sql("select status from gptyar_orders where id=$1", [o.id]))[0]
+          .status,
         "completed",
       );
     },
@@ -649,7 +682,7 @@ test("local integration: secure login, bot setup, invoices, payment verification
       assert.equal(
         (
           await sql(
-            "select status from payment_receipts where charge_id='suspicious'",
+            "select status from gptyar_payment_receipts where charge_id='suspicious'",
           )
         )[0].status,
         "needs_review",
@@ -666,14 +699,17 @@ test("local integration: secure login, bot setup, invoices, payment verification
         200,
       );
       await api("/api/settings/wallet/toggle", { enabled: true });
-      for (const text of [
-        "/start",
-        "خرید حساب اشتراکی",
-        "روزانه",
-        "۱",
-        "پرداخت",
-      ])
+      for (
+        const text of [
+          "/start",
+          "خرید حساب اشتراکی",
+          "روزانه",
+          "۱",
+          "پرداخت",
+        ]
+      ) {
         await userMessage(text, 234);
+      }
       const invoice = invoices.at(-1);
       assert.equal(invoice.provider_token, "WALLET-TEST-1111111111111111");
       await processUpdate(ctx, {

@@ -1,21 +1,74 @@
 import { AppError, assert, normalizeSubscriber } from "./domain.js";
+const BUSINESS_TABLES = new Set([
+  "admin_sessions",
+  "secure_settings",
+  "system_settings",
+  "bot_customers",
+  "bot_conversations",
+  "products",
+  "pricing_rules",
+  "discount_codes",
+  "subscriptions",
+  "orders",
+  "payments",
+  "subscription_operations",
+  "discount_redemptions",
+  "educational_videos",
+  "extension_versions",
+  "audit_logs",
+  "system_events",
+  "bot_updates",
+  "outbox_jobs",
+  "rate_limits",
+  "resource_leases",
+  "ownership_claims",
+  "upload_tickets",
+  "payment_receipts",
+  "admin_requests",
+]);
+// Keep logical application names while isolating every database object from
+// other applications hosted in the same Supabase project.
+export function databasePath(path) {
+  const separator = path.indexOf("?"),
+    resource = separator < 0 ? path : path.slice(0, separator),
+    query = new URLSearchParams(separator < 0 ? "" : path.slice(separator + 1));
+  if (/^rpc\/gy_[a-z_]+$/.test(resource)) {
+    return resource.replace("rpc/gy_", "rpc/gptyar_");
+  }
+  assert(BUSINESS_TABLES.has(resource), "DATABASE_RESOURCE_NOT_ALLOWED", 500);
+  if (query.has("select")) {
+    // Preserve embedded response keys expected by the existing admin UI.
+    query.set(
+      "select",
+      query.get("select").replace(
+        /\b([a-z_]+)\(/g,
+        (match, table) =>
+          BUSINESS_TABLES.has(table) ? `${table}:gptyar_${table}(` : match,
+      ),
+    );
+  }
+  return `gptyar_${resource}${query.size ? "?" + query.toString() : ""}`;
+}
 export class Database {
   constructor(env, timeout = 8000) {
     this.env = env;
     this.timeout = timeout;
   }
   async request(path, method = "GET", body, prefer = "return=representation") {
-    const r = await fetch(`${this.env.SUPABASE_URL}/rest/v1/${path}`, {
-      method,
-      headers: {
-        apikey: this.env.SUPABASE_SERVICE_ROLE_KEY,
-        Authorization: `Bearer ${this.env.SUPABASE_SERVICE_ROLE_KEY}`,
-        "Content-Type": "application/json",
-        Prefer: prefer,
+    const r = await fetch(
+      `${this.env.SUPABASE_URL}/rest/v1/${databasePath(path)}`,
+      {
+        method,
+        headers: {
+          apikey: this.env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${this.env.SUPABASE_SERVICE_ROLE_KEY}`,
+          "Content-Type": "application/json",
+          Prefer: prefer,
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: AbortSignal.timeout(this.timeout),
       },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(this.timeout),
-    });
+    );
     const data = await r.json().catch(() => null);
     if (!r.ok) {
       const e = new AppError(
@@ -58,15 +111,16 @@ export class GPTYar {
       signal: AbortSignal.timeout(12000),
     });
     const d = await r.json().catch(() => null);
-    if (!r.ok)
+    if (!r.ok) {
       throw new AppError(
         ["ENTERPRISE_USER_LIMIT", "ENTERPRISE_EXPIRY_LIMIT"].includes(d?.code)
           ? d.code
           : r.status === 401 || r.status === 403
-            ? "GPTYAR_UNAUTHORIZED"
-            : "GPTYAR_UPSTREAM_ERROR",
+          ? "GPTYAR_UNAUTHORIZED"
+          : "GPTYAR_UPSTREAM_ERROR",
         r.status === 401 || r.status === 403 ? 401 : 502,
       );
+    }
     assert(d && !d.error, "GPTYAR_CONTRACT_MISMATCH", 502);
     return d;
   }
@@ -144,11 +198,11 @@ export class Bale {
       text,
       ...(keyboard
         ? {
-            reply_markup: {
-              keyboard: keyboard.map((row) => row.map((text) => ({ text }))),
-              resize_keyboard: true,
-            },
-          }
+          reply_markup: {
+            keyboard: keyboard.map((row) => row.map((text) => ({ text }))),
+            resize_keyboard: true,
+          },
+        }
         : {}),
     });
   }
