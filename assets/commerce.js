@@ -345,7 +345,7 @@
     );
     state(
       host,
-      `مجوز خودکار: ${d.secrets.some((x) => x.key === "gptyar_automation") ? "ذخیره شده؛ مقدار مخفی" : "ذخیره نشده"}\nنسخه قرارداد API: ${d.extension_version}`,
+      `مجوز خودکار: ${d.secrets.some((x) => x.key === "gptyar_automation") ? "ذخیره شده؛ مقدار مخفی" : "ذخیره نشده"}\nاعتبار آخرین بررسی مجوز خودکار: ${s.automation?.connected ? "تأییدشده" : "تأییدنشده"}\nزمان بررسی: ${when(s.automation?.checked_at)}\nنسخه قرارداد API: ${d.extension_version}`,
     );
     const f = form(host, "ذخیره مجوز همین مدیر برای ربات", async (f) => {
       await post("/api/settings/automation", {
@@ -369,6 +369,16 @@
       },
       true,
     );
+    button(host, "بررسی مجوز خودکار", async () => {
+      const result = await post("/api/settings/automation/check", {});
+      ui.toast(
+        result.connected
+          ? "مجوز خودکار در سرور تأیید شد."
+          : error(result.error_code),
+        !result.connected,
+      );
+      await load("settings");
+    });
     button(host, "ابطال سایر نشست‌ها", async () => {
       await post("/api/sessions/revoke", {});
       ui.toast("سایر نشست‌ها باطل شدند.");

@@ -228,16 +228,42 @@ export async function adminRoute(ctx, req, path) {
     await ctx.set("notifications", { enabled: false });
     return { ok: true };
   }
+  if (path === "/api/settings/automation/check" && req.method === "POST") {
+    let status;
+    try {
+      const permission = await ctx.secret("gptyar_automation");
+      const result = await ctx.gpt.authorize(permission);
+      await ctx.scope(result.profile);
+      status = { connected: true, checked_at: new Date().toISOString() };
+    } catch (e) {
+      status = {
+        connected: false,
+        checked_at: new Date().toISOString(),
+        error_code: e.code || "GPTYAR_CONNECTION_FAILED",
+      };
+    }
+    await ctx.set("automation", status);
+    return status;
+  }
   if (path === "/api/settings/automation" && req.method === "POST") {
     if (b.revoke === true) {
       await ctx.db.request(
         "secure_settings?key=eq.gptyar_automation",
         "DELETE",
       );
+      await ctx.set("automation", {
+        connected: false,
+        revoked: true,
+        checked_at: new Date().toISOString(),
+      });
       return { ok: true };
     }
     assert(b.consent === true, "EXPLICIT_STORAGE_CONSENT_REQUIRED");
     await ctx.saveSecret("gptyar_automation", token, session.id);
+    await ctx.set("automation", {
+      connected: true,
+      checked_at: new Date().toISOString(),
+    });
     await ctx.audit(
       session.id,
       "automation_storage_consent",

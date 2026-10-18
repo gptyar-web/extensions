@@ -352,6 +352,9 @@ test("local integration: secure login, bot setup, invoices, payment verification
         (await api("/api/settings/automation", { consent: true })).status,
         200,
       );
+      const check = await api("/api/settings/automation/check", {});
+      assert.equal(check.status, 200);
+      assert.equal(check.body.connected, true);
       const key = crypto.randomUUID();
       assert.equal(
         (
