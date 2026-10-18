@@ -87,7 +87,21 @@ export async function adminRoute(ctx, req, path) {
       throw e;
     }
     if (!path.endsWith("/releases/upload")) b = await bodyJSON(req);
-    await ctx.audit(session.id, `${req.method} ${path}`, null);
+    const target =
+      typeof b.id === "string" && /^[a-f0-9-]{36}$/.test(b.id)
+        ? b.id
+        : ["day", "month"].includes(b.unit)
+          ? b.unit
+          : null;
+    const auditPath = /^\/api\/[a-z/-]{1,80}$/.test(path)
+      ? path
+      : path.startsWith("/api/subscribers/")
+        ? "/api/subscribers/:id"
+        : "/api/invalid";
+    await ctx.audit(session.id, `${req.method} ${auditPath}`, target, {
+      request_id: key,
+      phase: "requested",
+    });
   }
   if (path === "/api/sessions/revoke" && req.method === "POST") {
     await ctx.db.patch(

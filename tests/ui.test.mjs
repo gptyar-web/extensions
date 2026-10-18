@@ -13,6 +13,12 @@ async function until(fn) {
   }
 }
 test("admin UI preserves single-token login and renders all twelve commerce pages with backend data", async (t) => {
+  const previousTZ = process.env.TZ;
+  process.env.TZ = "Asia/Tehran";
+  t.after(() => {
+    if (previousTZ === undefined) delete process.env.TZ;
+    else process.env.TZ = previousTZ;
+  });
   const errors = [],
     v = new VirtualConsole();
   v.on("jsdomError", (e) => errors.push(e.message));
@@ -92,6 +98,20 @@ test("admin UI preserves single-token login and renders all twelve commerce page
         update_endpoint:
           "https://fixture.supabase.co/functions/v1/gptyar-api/public/check-for-update",
       };
+    if (path === "/api/discounts")
+      d = [
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          code: "TIMEZONE",
+          kind: "percent",
+          value: 10,
+          scope: "both",
+          starts_at: "2026-10-18T09:00:00.000Z",
+          ends_at: "2026-10-19T09:00:00.000Z",
+          per_customer: 1,
+          active: true,
+        },
+      ];
     if (path === "/api/pricing")
       d = [
         {
@@ -147,6 +167,19 @@ test("admin UI preserves single-token login and renders all twelve commerce page
     assert(!host.querySelector(".field-error"), "page failed " + page);
     assert(!w.document.getElementById("page-" + page).hidden);
   }
+  w.document.querySelector('#sidebarNav [data-page="discounts"]').click();
+  await until(
+    () =>
+      !w.document
+        .getElementById("commerce-discounts")
+        .textContent.includes("در حال دریافت"),
+  );
+  w.document.querySelector("#commerce-discounts td button").click();
+  const start = w.document.querySelector(
+    '#commerce-discounts input[name="starts"]',
+  );
+  assert.equal(start.value, "2026-10-18T12:30");
+  assert.equal(new Date(start.value).toISOString(), "2026-10-18T09:00:00.000Z");
   assert.equal(w.localStorage.length, 0);
   assert.equal(w.sessionStorage.length, 0);
   const call = calls.find((c) => c.path === "/api/settings");

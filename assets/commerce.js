@@ -14,6 +14,13 @@
       v
         ? new Date(v).toLocaleString("fa-IR", { timeZone: "Asia/Tehran" })
         : "—";
+  const inputTime = (value) => {
+    if (!value) return "";
+    const date = new Date(value);
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+      .toISOString()
+      .slice(0, 16);
+  };
   const ERR = {
     RELEASE_CHANNEL_NOT_CONNECTED:
       "این بسته به کانال بروزرسانی همین سامانه متصل نیست. بسته سازگار را با ابزار مخزن chatgpt آماده کنید؛ نسخه اصلی API خود را تغییر نمی‌دهد.",
@@ -419,7 +426,7 @@
       "expiry",
       "آخرین تاریخ مجاز انقضا (اختیاری)",
       "datetime-local",
-      l.maxExpiresAt ? l.maxExpiresAt.slice(0, 16) : "",
+      inputTime(l.maxExpiresAt),
     );
     field(
       lf,
@@ -627,14 +634,14 @@
         "starts",
         "شروع (زمان مرورگر)",
         "datetime-local",
-        (r.starts_at || new Date().toISOString()).slice(0, 16),
+        inputTime(r.starts_at || new Date().toISOString()),
       );
       field(
         f,
         "ends",
         "پایان (زمان مرورگر)",
         "datetime-local",
-        r.ends_at?.slice(0, 16) || "",
+        inputTime(r.ends_at),
       );
       field(
         f,
@@ -860,12 +867,16 @@
     const sequence = ++loadId;
     try {
       if (page === "overview") {
-        await dashboard($("commerceDashboard"));
+        const content = n("div");
+        await dashboard(content);
+        if (sequence === loadId && ui.session())
+          $("commerceDashboard").replaceChildren(...content.childNodes);
         return;
       }
-      const host = $("commerce-" + page);
-      if (!host) return;
-      host.replaceChildren(n("p", "در حال دریافت داده‌های واقعی…"));
+      const mount = $("commerce-" + page),
+        host = n("div");
+      if (!mount) return;
+      mount.replaceChildren(n("p", "در حال دریافت داده‌های واقعی…"));
       if (page === "bot") await botPage(host);
       else if (page === "wallet") await walletPage(host);
       else if (page === "settings") await systemPage(host);
@@ -934,6 +945,7 @@
           await req("/api/events"),
         );
       }
+      if (sequence === loadId && ui.session()) mount.replaceChildren(host);
     } catch (e) {
       if (sequence === loadId) {
         ui.toast(e.message, true);
@@ -946,6 +958,7 @@
     load,
     error,
     clear() {
+      loadId++;
       document
         .querySelectorAll(".commerce-host")
         .forEach((x) => x.replaceChildren());
