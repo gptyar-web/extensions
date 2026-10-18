@@ -2,7 +2,7 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const base = String(window.ADMIN_PANEL_CONFIG?.API_BASE_URL || '').trim().replace(/\/+$/, '');
-  const pages = { overview: 'نمای کلی', subscribers: 'مدیریت مشترکان', cookies: 'مدیریت کوکی‌ها', proxies: 'پروکسی‌ها', account: 'اطلاعات حساب و MFA', help: 'راهنما و محدودیت‌ها' };
+  const pages = { overview: 'نمای کلی', subscribers: 'مدیریت مشترکان', cookies: 'مدیریت کوکی‌ها', proxies: 'پروکسی‌ها', account: 'اطلاعات حساب و MFA', help: 'راهنما و محدودیت‌ها', bot:'تنظیمات ربات بله', wallet:'تنظیمات پرداخت بله', orders:'سفارش‌ها', payments:'پرداخت‌ها', renewals:'تمدید اشتراک', discounts:'کدهای تخفیف', pricing:'مدیریت قیمت‌ها', videos:'فیلم‌های آموزشی', releases:'نسخه‌های افزونه', settings:'تنظیمات سامانه', reports:'گزارش فروش', logs:'گزارش عملیات و خطاها' };
   const state = { token: '', profile: null, subscribers: [], expiryId: '', busy: false, otpTimer: null };
   const text = x => typeof x === 'string' ? x : (x == null ? '' : String(x));
   const safe = x => text(x).slice(0, 600);
@@ -17,18 +17,18 @@
     const el = $('toast'); el.textContent = message; el.hidden = false; el.classList.toggle('error', isError);
     clearTimeout(toastId); toastId = setTimeout(() => el.hidden = true, 5000);
   }
-  function configured() { return /^https:\/\/[^/?#]+$/.test(base); }
+  function configured() { try { const u=new URL(base); return u.protocol==='https:' && !u.search && !u.hash; } catch { return false; } }
   async function request(path, options = {}) {
-    if (!configured()) throw new Error('نشانی HTTPS سرویس Worker در config.js تنظیم نشده است.');
-    const token = options.token || state.token;
+    if (!configured()) throw new Error('نشانی HTTPS سرویس Supabase در config.js تنظیم نشده است.');
+    const token = options.token ?? state.token;
     const res = await fetch(base + path, {
       method: options.method || 'GET', mode: 'cors', cache: 'no-store', credentials: 'omit',
-      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...((options.method && options.method!=='GET') ? {'X-Request-ID':crypto.randomUUID()} : {}), ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
       ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {})
     });
     const data = await res.json().catch(() => ({}));
     if (res.status === 401 && path !== '/api/login') { signOut(); throw new Error('اعتبار توکن مدیریتی تأیید نشد. لطفاً دوباره وارد شوید.'); }
-    if (!res.ok) throw new Error(data.error || `خطای سرور (${res.status})`);
+    if (!res.ok) throw new Error(window.GPTYAR_COMMERCE?.error(data.error) || data.error || `خطای سرور (${res.status})`);
     return data;
   }
   function setScreen(loggedIn) {
@@ -43,6 +43,7 @@
     $('adminToken').value = ''; $('cookieJson').value = '';
     $('resultText').value = '';
     document.querySelectorAll('dialog[open]').forEach(x => x.close());
+    window.GPTYAR_COMMERCE?.clear();
     setScreen(false);
   }
   function navigate(page) {
@@ -52,6 +53,7 @@
     $('pageTitle').textContent = pages[page];
     if (page === 'subscribers') loadSubscribers();
     if (page === 'account') renderAccount();
+    window.GPTYAR_COMMERCE?.load(page);
   }
   function el(type, cls, value) { const n = document.createElement(type); if (cls) n.className = cls; if (value !== undefined) n.textContent = text(value); return n; }
   function addButton(parent, value, handler, danger = false) {
@@ -175,7 +177,7 @@
     state.busy = true; $('loginBtn').disabled = true;
     try {
       const data = await request('/api/login', { method: 'POST', body: { token }, token: '' });
-      state.token = token; state.profile = data.profile;
+      state.token = data.session; state.profile = data.profile;
       $('adminToken').value = ''; setScreen(true); renderOverview(); navigate('overview');
       await loadSubscribers(); toast('ورود مدیریتی تأیید شد.');
     } catch (error) { $('loginError').textContent = error.message; $('loginError').hidden = false; }
@@ -185,7 +187,7 @@
   document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => $(b.dataset.close).close()));
   $('loginForm').addEventListener('submit', login);
   $('toggleToken').addEventListener('click', () => { const input = $('adminToken'); input.type = input.type === 'password' ? 'text' : 'password'; $('toggleToken').textContent = input.type === 'password' ? 'نمایش' : 'پنهان'; });
-  $('logoutBtn').addEventListener('click', signOut);
+  $('logoutBtn').addEventListener('click', async () => { try { await request('/api/logout',{method:'POST',body:{}}); } catch(e) { toast('خروج محلی انجام شد؛ ابطال سرور تأیید نشد: '+e.message,true); } finally { signOut(); } });
   $('refreshBtn').addEventListener('click', refresh);
   $('reloadSubscribers').addEventListener('click', loadSubscribers);
   $('subscriberSearch').addEventListener('input', filterSubscribers);
@@ -214,8 +216,9 @@
   });
   $('reloadProxies').addEventListener('click', loadProxies);
   if (!configured()) {
-    $('loginError').textContent = 'قبل از ورود، Worker را منتشر کنید و آدرس HTTPS آن را در config.js قرار دهید.';
+    $('loginError').textContent = 'قبل از ورود، Backend Supabase را مستقر کنید و آدرس HTTPS آن را در config.js قرار دهید.';
     $('loginError').hidden = false;
   }
+  window.GPTYAR_ADMIN_UI = {request,toast,base,session:()=>state.token};
   setScreen(false);
 })();

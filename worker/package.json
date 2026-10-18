@@ -3,6 +3,12 @@
   "version": "2.0.0",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node --test", "dev": "wrangler dev", "deploy": "wrangler deploy" },
-  "devDependencies": { "wrangler": "^4.0.0" }
+  "scripts": {
+    "test": "node --test",
+    "dev": "node -e \"throw new Error('Archived Cloudflare gateway')\"",
+    "deploy": "node -e \"throw new Error('Archived: deploy supabase/functions/gptyar-api instead')\""
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
 }

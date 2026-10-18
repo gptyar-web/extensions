@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="assets/styles.css">
   <script defer src="config.js"></script>
   <script defer src="assets/app.js"></script>
+  <script defer src="assets/commerce.js"></script>
 </head>
 <body>
   <div class="site-bar"><span class="brand"><span class="brand-mark">G</span><span>GPT <b>Yar</b><small>ADMIN CENTER</small></span></span><div class="site-status"><span class="status-dot"></span><span id="connectionLabel">در انتظار ورود مدیر</span></div></div>
@@ -26,7 +27,7 @@
         <p id="loginError" class="field-error" role="alert" hidden></p>
         <button id="loginBtn" type="submit" class="button primary wide">تأیید توکن و ورود <span aria-hidden="true">←</span></button>
       </form>
-      <div class="login-foot"><span>🔒 توکن ذخیره نمی‌شود</span><span>تأیید توسط GPT Yar</span></div>
+      <div class="login-foot"><span>🔒 نشست امن و قابل ابطال</span><span>تأیید توسط GPT Yar</span></div>
     </section>
   </main>
 
@@ -40,6 +41,18 @@
         <button class="nav-item" data-page="proxies">◎ <span>پروکسی‌ها</span></button>
         <button class="nav-item" data-page="account">✧ <span>اطلاعات حساب و MFA</span></button>
         <button class="nav-item" data-page="help">ⓘ <span>راهنما و محدودیت‌ها</span></button>
+        <button class="nav-item" data-page="bot"><span>ربات بله</span></button>
+        <button class="nav-item" data-page="wallet"><span>پرداخت بله</span></button>
+        <button class="nav-item" data-page="orders"><span>سفارش‌ها</span></button>
+        <button class="nav-item" data-page="payments"><span>پرداخت‌ها</span></button>
+        <button class="nav-item" data-page="renewals"><span>تمدیدها</span></button>
+        <button class="nav-item" data-page="discounts"><span>کدهای تخفیف</span></button>
+        <button class="nav-item" data-page="pricing"><span>قیمت‌ها</span></button>
+        <button class="nav-item" data-page="videos"><span>آموزش‌ها</span></button>
+        <button class="nav-item" data-page="releases"><span>نسخه‌های افزونه</span></button>
+        <button class="nav-item" data-page="settings"><span>تنظیمات سامانه</span></button>
+        <button class="nav-item" data-page="reports"><span>گزارش فروش</span></button>
+        <button class="nav-item" data-page="logs"><span>عملیات و خطاها</span></button>
       </nav>
       <div class="sidebar-footer"><div class="role-chip">● <span>ADMIN / @ TOKEN</span></div><button id="logoutBtn" class="nav-item signout">⇥ <span>خروج امن</span></button></div>
     </aside>
@@ -49,7 +62,8 @@
       <section id="page-overview" class="page">
         <p class="intro">خوش آمدید. اطلاعات و عملیات این پنل مستقیماً از API مدیریتی GPT Yar دریافت می‌شوند.</p>
         <div class="stats"><article class="stat"><span>تعداد مشترکان</span><strong id="statTotal">—</strong><small>کل اشتراک‌ها</small></article><article class="stat"><span>اشتراک‌های فعال</span><strong id="statActive">—</strong><small>طبق اطلاعات سرور</small></article><article class="stat"><span>نمایه مدیر</span><strong id="statAgent">—</strong><small>حساب دارای توکن @</small></article></div>
-        <div class="columns"><section class="panel"><div class="panel-head"><h2>دسترسی‌های سریع</h2></div><div class="quick-grid"><button data-page="subscribers" class="quick"><span class="quick-icon">♙</span><strong>مشترکان</strong><small>ایجاد، تمدید و حذف</small></button><button data-page="cookies" class="quick"><span class="quick-icon">▣</span><strong>کوکی‌ها</strong><small>وضعیت و بروزرسانی</small></button><button data-page="proxies" class="quick"><span class="quick-icon">◎</span><strong>پروکسی‌ها</strong><small>فهرست پروکسی سرور</small></button><button data-page="account" class="quick"><span class="quick-icon">✧</span><strong>اطلاعات حساب</strong><small>اعتبار مدیر و MFA</small></button></div></section><section class="panel"><div class="panel-head"><h2>وضعیت نشست</h2></div><div class="activity"><p><span class="online-dot"></span> احراز هویت در سرور موفق بود</p><p>در هر درخواست، اعتبار توکن مدیریتی مجدداً بررسی می‌شود.</p><p>توکن در حافظهٔ موقت همین صفحه است و با خروج یا بارگذاری مجدد پاک می‌شود.</p></div></section></div>
+        <div id="commerceDashboard" class="stats" aria-live="polite"></div>
+        <div class="columns"><section class="panel"><div class="panel-head"><h2>دسترسی‌های سریع</h2></div><div class="quick-grid"><button data-page="subscribers" class="quick"><span class="quick-icon">♙</span><strong>مشترکان</strong><small>ایجاد، تمدید و حذف</small></button><button data-page="cookies" class="quick"><span class="quick-icon">▣</span><strong>کوکی‌ها</strong><small>وضعیت و بروزرسانی</small></button><button data-page="proxies" class="quick"><span class="quick-icon">◎</span><strong>پروکسی‌ها</strong><small>فهرست پروکسی سرور</small></button><button data-page="account" class="quick"><span class="quick-icon">✧</span><strong>اطلاعات حساب</strong><small>اعتبار مدیر و MFA</small></button></div></section><section class="panel"><div class="panel-head"><h2>وضعیت نشست</h2></div><div class="activity"><p><span class="online-dot"></span> احراز هویت در سرور موفق بود</p><p>در هر درخواست، اعتبار توکن مدیریتی مجدداً بررسی می‌شود.</p><p>شناسه نشست فقط در حافظه این صفحه است؛ خروج، نشست سرور را باطل می‌کند. مجوز خودکار ربات مستقل از باز بودن این صفحه نگهداری می‌شود.</p></div></section></div>
       </section>
       <section id="page-subscribers" class="page" hidden>
         <div class="panel"><div class="panel-head split"><div><h2>مشترکان و توکن‌های کاربران</h2><p class="muted">مدیر می‌تواند مشترکان را مدیریت کند؛ توکن کاربران امکان ورود به این پنل را ندارند.</p></div><button id="newSubscriberBtn" class="button primary">+ ساخت مشترک</button></div>
@@ -63,7 +77,19 @@
       </section>
       <section id="page-proxies" class="page" hidden><article class="panel"><div class="panel-head split"><div><h2>فهرست پروکسی‌های حساب</h2><p class="muted">داده‌ها از API اکستنشن دریافت می‌شوند. فعال‌سازی پروکسی در مرورگر فقط از داخل خود اکستنشن امکان‌پذیر است.</p></div><button id="reloadProxies" class="button secondary">بروزرسانی</button></div><div id="proxyList" class="proxy-grid"><div class="empty-mini">برای دریافت پروکسی‌ها، بروزرسانی کنید.</div></div></article></section>
       <section id="page-account" class="page" hidden><div class="columns"><article class="panel"><div class="panel-head"><h2>حساب مدیر</h2></div><dl id="accountInfo" class="details-list"></dl></article><article class="panel"><div class="panel-head"><h2>اطلاعات ورود و رمز یکبارمصرف</h2></div><p class="muted">در صورتی که اطلاعات MFA در پاسخ حساب موجود باشد، کد TOTP روی همین دستگاه تولید می‌شود. رمزها به سرور دیگری ارسال نمی‌شوند.</p><div id="credentialBlock" class="empty-mini">اطلاعات ورود در دسترس نیست.</div></article></div></section>
-      <section id="page-help" class="page" hidden><article class="panel help-text"><h2>محدودهٔ عملکرد</h2><p>ورود تنها از مسیر <code>/accupdator/validate</code> و با توکن مدیریتی معتبر که با <code>@</code> آغاز می‌شود انجام می‌گیرد. توکن عادی هرگز به API مدیریتی ارسال نمی‌شود.</p><p>عملیات مبتنی بر API مدیر: مشاهده حساب، ایجاد/حذف/تغییر تاریخ مشترکان، وضعیت و بروزرسانی کوکی‌ها، و خواندن فهرست پروکسی‌ها.</p><p>قابلیت‌هایی که به مجوز <code>chrome.proxy</code>، <code>chrome.cookies</code>، تب مرورگر یا تزریق محتوا نیاز دارند (مثل فعال‌سازی VPN/پروکسی، دریافت خودکار کوکی و ورود خودکار سرویس‌ها) در GitHub Pages قابل اجرای مستقیم نیستند. برای آن‌ها همچنان باید اکستنشن را اجرا کنید.</p><p>مقدار توکن در URL، localStorage، sessionStorage یا مخزن GitHub نگهداری نمی‌شود؛ پس از بارگذاری مجدد صفحه نیاز به ورود دوباره است.</p></article></section>
+      <section id="page-help" class="page" hidden><article class="panel help-text"><h2>محدودهٔ عملکرد</h2><p>ورود تنها از مسیر <code>/accupdator/validate</code> و با توکن مدیریتی معتبر که با <code>@</code> آغاز می‌شود انجام می‌گیرد. توکن عادی هرگز به API مدیریتی ارسال نمی‌شود.</p><p>عملیات مبتنی بر API مدیر: مشاهده حساب، ایجاد/حذف/تغییر تاریخ مشترکان، وضعیت و بروزرسانی کوکی‌ها، و خواندن فهرست پروکسی‌ها.</p><p>قابلیت‌هایی که به مجوز <code>chrome.proxy</code>، <code>chrome.cookies</code>، تب مرورگر یا تزریق محتوا نیاز دارند (مثل فعال‌سازی VPN/پروکسی، دریافت خودکار کوکی و ورود خودکار سرویس‌ها) در GitHub Pages قابل اجرای مستقیم نیستند. برای آن‌ها همچنان باید اکستنشن را اجرا کنید.</p><p>توکن ورود فقط برای احراز هویت اولیه به Backend ارسال می‌شود. پس از آن شناسه نشست قابل ابطال استفاده می‌شود. نگهداری مجوز ربات تنها با تأیید صریح در تنظیمات و به شکل رمزنگاری‌شده سمت سرور انجام می‌شود.</p></article></section>
+      <section id="page-bot" class="page" hidden><div class="panel commerce-host" id="commerce-bot"></div></section>
+      <section id="page-wallet" class="page" hidden><div class="panel commerce-host" id="commerce-wallet"></div></section>
+      <section id="page-orders" class="page" hidden><div class="panel commerce-host" id="commerce-orders"></div></section>
+      <section id="page-payments" class="page" hidden><div class="panel commerce-host" id="commerce-payments"></div></section>
+      <section id="page-renewals" class="page" hidden><div class="panel commerce-host" id="commerce-renewals"></div></section>
+      <section id="page-discounts" class="page" hidden><div class="panel commerce-host" id="commerce-discounts"></div></section>
+      <section id="page-pricing" class="page" hidden><div class="panel commerce-host" id="commerce-pricing"></div></section>
+      <section id="page-videos" class="page" hidden><div class="panel commerce-host" id="commerce-videos"></div></section>
+      <section id="page-releases" class="page" hidden><div class="panel commerce-host" id="commerce-releases"></div></section>
+      <section id="page-settings" class="page" hidden><div class="panel commerce-host" id="commerce-settings"></div></section>
+      <section id="page-reports" class="page" hidden><div class="panel commerce-host" id="commerce-reports"></div></section>
+      <section id="page-logs" class="page" hidden><div class="panel commerce-host" id="commerce-logs"></div></section>
     </main>
   </div>
   <dialog id="subscriberDialog" class="modal"><form id="subscriberForm"><h2>ساخت مشترک جدید</h2><p class="muted">توکن کاربر توسط سرور GPT Yar صادر می‌شود.</p><label for="newName">نام مشترک</label><input id="newName" required maxlength="100"><label for="newExpiry">تاریخ انقضا (اختیاری)</label><input id="newExpiry" type="date"><div class="dialog-actions"><button type="button" data-close="subscriberDialog" class="button secondary">انصراف</button><button type="submit" class="button primary">ساخت مشترک</button></div></form></dialog>
