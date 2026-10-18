@@ -1,7 +1,2 @@
-name = "extensions-admin-gateway"
-main = "src/index.js"
-compatibility_date = "2026-09-01"
-
-[vars]
-FRONTEND_URL = "https://mozdbaranarshiya.github.io/extensions/"
-EXTENSION_VERSION = "4.6.4"
+# Archived migration reference. Deployment intentionally disabled.
+# The current panel uses Supabase gptyar-api.

@@ -1,0 +1,4 @@
+{
+  "compilerOptions":{"checkJs":true,"strict":false},
+  "tasks":{"check":"deno check supabase/functions/gptyar-api/index.ts"}
+}

@@ -1,0 +1,16 @@
+{
+  "name": "gptyar-commerce",
+  "private": true,
+  "type": "module",
+  "version": "3.0.0",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs worker/tests/*.test.mjs",
+    "test:db": "node --test tests/database.test.mjs",
+    "check": "deno check supabase/functions/gptyar-api/index.ts"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.3.14",
+    "fflate": "0.8.2",
+    "jsdom": "26.0.0"
+  }
+}
